@@ -36,7 +36,5 @@
 	<string>Downtime can pause reminders while a calendar event is happening now.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Downtime can pause reminders while a calendar event is happening now.</string>
-	<key>NSLocationUsageDescription</key>
-	<string>Downtime can label your network usage history by Wi-Fi network name, if you turn that on in Settings → Network. This is read locally and never leaves your Mac.</string>
 </dict>
 </plist>

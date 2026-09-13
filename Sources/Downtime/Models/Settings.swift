@@ -83,6 +83,11 @@ struct Settings: Codable, Equatable {
     var awayResetsTimerMinutes: Int  // being away this long counts as a break
     var respectFullscreen: Bool      // don't interrupt fullscreen apps
 
+    // MARK: Calendar
+
+    var calendarAwareEnabled: Bool   // hold reminders while a calendar event is happening now
+    var calendarSkipAllDayEvents: Bool
+
     // MARK: Schedule
 
     var scheduleEnabled: Bool
@@ -94,6 +99,9 @@ struct Settings: Codable, Equatable {
 
     var dailyBreakGoal: Int
     var waterGlassGoal: Int
+    /// Per-reminder daily goal, keyed by `ReminderKind.rawValue`, that backs
+    /// each reminder's own streak (separate from the overall `dailyBreakGoal`).
+    var perKindGoal: [String: Int]
 
     // MARK: Login
 
@@ -136,12 +144,19 @@ struct Settings: Codable, Equatable {
             idlePauseSeconds: 90,
             awayResetsTimerMinutes: 5,
             respectFullscreen: false,
+            calendarAwareEnabled: false,
+            calendarSkipAllDayEvents: true,
             scheduleEnabled: false,
             workdays: [2, 3, 4, 5, 6],
             startMinuteOfDay: 9 * 60,
             endMinuteOfDay: 18 * 60,
             dailyBreakGoal: 8,
             waterGlassGoal: 8,
+            perKindGoal: [
+                ReminderKind.stand.rawValue: 5,
+                ReminderKind.water.rawValue: 6,
+                ReminderKind.eyes.rawValue: 8
+            ],
             launchAtLogin: false
         )
     }
@@ -154,6 +169,10 @@ struct Settings: Codable, Equatable {
 
     func index(of kind: ReminderKind) -> Int? {
         reminders.firstIndex(where: { $0.kind == kind })
+    }
+
+    func goal(for kind: ReminderKind) -> Int {
+        perKindGoal[kind.rawValue] ?? 5
     }
 
     var enabledReminders: [ReminderSetting] {
@@ -195,6 +214,11 @@ struct Settings: Codable, Equatable {
         endMinuteOfDay = min(max(endMinuteOfDay, 0), 24 * 60 - 1)
         dailyBreakGoal = min(max(dailyBreakGoal, 1), 60)
         waterGlassGoal = min(max(waterGlassGoal, 1), 20)
+        var goals: [String: Int] = [:]
+        for kind in ReminderKind.allCases {
+            goals[kind.rawValue] = min(max(perKindGoal[kind.rawValue] ?? 5, 1), 30)
+        }
+        perKindGoal = goals
         let days = Set(workdays.filter { (1...7).contains($0) })
         workdays = days.isEmpty ? [1, 2, 3, 4, 5, 6, 7] : days.sorted()
     }
@@ -202,7 +226,7 @@ struct Settings: Codable, Equatable {
     // MARK: - Forgiving decoding
     //
     // Every key falls back to the default, so a settings file written by an
-    // older or newer build of Take a Break still loads instead of being thrown away.
+    // older or newer build of Downtime still loads instead of being thrown away.
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -222,12 +246,15 @@ struct Settings: Codable, Equatable {
         idlePauseSeconds = (try? c.decode(Int.self, forKey: .idlePauseSeconds)) ?? d.idlePauseSeconds
         awayResetsTimerMinutes = (try? c.decode(Int.self, forKey: .awayResetsTimerMinutes)) ?? d.awayResetsTimerMinutes
         respectFullscreen = (try? c.decode(Bool.self, forKey: .respectFullscreen)) ?? d.respectFullscreen
+        calendarAwareEnabled = (try? c.decode(Bool.self, forKey: .calendarAwareEnabled)) ?? d.calendarAwareEnabled
+        calendarSkipAllDayEvents = (try? c.decode(Bool.self, forKey: .calendarSkipAllDayEvents)) ?? d.calendarSkipAllDayEvents
         scheduleEnabled = (try? c.decode(Bool.self, forKey: .scheduleEnabled)) ?? d.scheduleEnabled
         workdays = (try? c.decode([Int].self, forKey: .workdays)) ?? d.workdays
         startMinuteOfDay = (try? c.decode(Int.self, forKey: .startMinuteOfDay)) ?? d.startMinuteOfDay
         endMinuteOfDay = (try? c.decode(Int.self, forKey: .endMinuteOfDay)) ?? d.endMinuteOfDay
         dailyBreakGoal = (try? c.decode(Int.self, forKey: .dailyBreakGoal)) ?? d.dailyBreakGoal
         waterGlassGoal = (try? c.decode(Int.self, forKey: .waterGlassGoal)) ?? d.waterGlassGoal
+        perKindGoal = (try? c.decode([String: Int].self, forKey: .perKindGoal)) ?? d.perKindGoal
         launchAtLogin = (try? c.decode(Bool.self, forKey: .launchAtLogin)) ?? d.launchAtLogin
         normalize()
     }
@@ -247,12 +274,15 @@ struct Settings: Codable, Equatable {
          idlePauseSeconds: Int,
          awayResetsTimerMinutes: Int,
          respectFullscreen: Bool,
+         calendarAwareEnabled: Bool,
+         calendarSkipAllDayEvents: Bool,
          scheduleEnabled: Bool,
          workdays: [Int],
          startMinuteOfDay: Int,
          endMinuteOfDay: Int,
          dailyBreakGoal: Int,
          waterGlassGoal: Int,
+         perKindGoal: [String: Int],
          launchAtLogin: Bool) {
         self.reminders = reminders
         self.breakStyle = breakStyle
@@ -269,12 +299,15 @@ struct Settings: Codable, Equatable {
         self.idlePauseSeconds = idlePauseSeconds
         self.awayResetsTimerMinutes = awayResetsTimerMinutes
         self.respectFullscreen = respectFullscreen
+        self.calendarAwareEnabled = calendarAwareEnabled
+        self.calendarSkipAllDayEvents = calendarSkipAllDayEvents
         self.scheduleEnabled = scheduleEnabled
         self.workdays = workdays
         self.startMinuteOfDay = startMinuteOfDay
         self.endMinuteOfDay = endMinuteOfDay
         self.dailyBreakGoal = dailyBreakGoal
         self.waterGlassGoal = waterGlassGoal
+        self.perKindGoal = perKindGoal
         self.launchAtLogin = launchAtLogin
     }
 }
@@ -282,7 +315,7 @@ struct Settings: Codable, Equatable {
 // MARK: - Persistence
 
 enum SettingsStore {
-    private static let key = "takeabreak.settings.v1"
+    private static let key = "downtime.settings.v1"
 
     static func load() -> Settings {
         guard let data = UserDefaults.standard.data(forKey: key),

@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @ObservedObject var model: AppModel
@@ -64,6 +65,38 @@ private func breakLabel(_ seconds: Int) -> String {
     if seconds < 60 { return "\(seconds) seconds" }
     let m = seconds / 60
     return m == 1 ? "1 minute" : "\(m) minutes"
+}
+
+private func perKindGoalBinding(_ model: AppModel, _ kind: ReminderKind) -> Binding<Int> {
+    Binding(
+        get: { model.settings.perKindGoal[kind.rawValue] ?? 5 },
+        set: { newValue in
+            var copy = model.settings
+            copy.perKindGoal[kind.rawValue] = newValue
+            model.settings = copy
+        }
+    )
+}
+
+private func exportSettings(_ model: AppModel) {
+    guard let data = try? JSONEncoder().encode(model.settings) else { return }
+    let panel = NSSavePanel()
+    panel.nameFieldStringValue = "Downtime-Settings.json"
+    panel.allowedContentTypes = [.json]
+    guard panel.runModal() == .OK, let url = panel.url else { return }
+    try? data.write(to: url, options: .atomic)
+}
+
+private func importSettings(_ model: AppModel) {
+    let panel = NSOpenPanel()
+    panel.allowedContentTypes = [.json]
+    panel.allowsMultipleSelection = false
+    panel.canChooseDirectories = false
+    guard panel.runModal() == .OK, let url = panel.url,
+          let data = try? Data(contentsOf: url),
+          let decoded = try? JSONDecoder().decode(Settings.self, from: data)
+    else { return }
+    model.settings = decoded
 }
 
 // MARK: - Reminders
@@ -183,6 +216,9 @@ private struct BreakScreenTab: View {
         var copy = model.settings
         copy.breakStyle = style
         model.settings = copy
+        if style == .notification {
+            NotificationManager.shared.requestAuthorizationIfNeeded()
+        }
     }
 
     var body: some View {
@@ -351,6 +387,30 @@ private struct ScheduleTab: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("Calendar") {
+                Toggle("Pause reminders during calendar meetings",
+                       isOn: settingsBinding(model, \.calendarAwareEnabled))
+                Toggle("Ignore all-day events",
+                       isOn: settingsBinding(model, \.calendarSkipAllDayEvents))
+                    .disabled(!model.settings.calendarAwareEnabled)
+
+                if model.settings.calendarAwareEnabled {
+                    if model.calendarAccessDenied {
+                        Text("Calendar access is off. Enable it in System Settings ▸ Privacy & Security ▸ Calendars, then turn this back on.")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    } else if model.isInMeeting {
+                        Text("Right now: in a meeting\(model.meetingTitle.map { " — \($0)" } ?? "") — reminders on hold.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("Reminders will hold automatically while an event on your calendar is happening.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
             Section("Right now") {
                 HStack(spacing: 6) {
                     Image(systemName: model.pauseReason?.symbolName ?? "checkmark.circle.fill")
@@ -380,7 +440,7 @@ private struct GeneralTab: View {
     var body: some View {
         Form {
             Section("Startup") {
-                Toggle("Open Take a Break at login", isOn: settingsBinding(model, \.launchAtLogin))
+                Toggle("Open Downtime at login", isOn: settingsBinding(model, \.launchAtLogin))
                 if let problem = model.launchAtLoginProblem {
                     Text(problem)
                         .font(.caption)
@@ -425,13 +485,34 @@ private struct GeneralTab: View {
                 }
             }
 
+            Section("Per-reminder goals") {
+                ForEach(ReminderKind.allCases) { kind in
+                    Stepper(value: perKindGoalBinding(model, kind), in: 1...30) {
+                        Text("\(kind.title) per day: \(model.settings.perKindGoal[kind.rawValue] ?? 5)")
+                    }
+                }
+                Text("Each reminder keeps its own streak once you hit its goal for the day.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Backup") {
+                HStack {
+                    Button("Export Settings…") { exportSettings(model) }
+                    Button("Import Settings…") { importSettings(model) }
+                }
+                Text("Save your settings to a file, or load one on another Mac.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("About") {
                 HStack(spacing: 10) {
                     Image(systemName: "cup.and.saucer.fill")
                         .font(.system(size: 18))
                         .foregroundStyle(ReminderKind.stand.tint)
                     VStack(alignment: .leading, spacing: 1) {
-                        Text("Take a Break 1.0").font(.system(size: 12, weight: .semibold))
+                        Text("Downtime 1.1").font(.system(size: 12, weight: .semibold))
                         Text("Break reminders for long days at the screen.")
                             .font(.caption).foregroundStyle(.secondary)
                     }
@@ -448,6 +529,24 @@ private struct GeneralTab: View {
 }
 
 // MARK: - Stats
+
+@ViewBuilder
+private func weekTrend(current: Int, previous: Int) -> some View {
+    let delta = current - previous
+    HStack(spacing: 4) {
+        Text("\(current)")
+        if delta != 0 {
+            Image(systemName: delta > 0 ? "arrow.up.right" : "arrow.down.right")
+                .font(.caption2)
+            Text("\(abs(delta)) \(delta > 0 ? "more" : "fewer") than last week")
+                .font(.caption2)
+        } else {
+            Text("same as last week")
+                .font(.caption2)
+        }
+    }
+    .foregroundStyle(.secondary)
+}
 
 private struct StatsTab: View {
     @ObservedObject var model: AppModel
@@ -507,6 +606,39 @@ private struct StatsTab: View {
                 }
             }
 
+            Section("This week vs. last week") {
+                let summary = model.weekSummary
+                HStack {
+                    Text("Breaks taken")
+                    Spacer()
+                    weekTrend(current: summary.breaksThisWeek, previous: summary.breaksLastWeek)
+                }
+                HStack {
+                    Text("Compliance")
+                    Spacer()
+                    Text("\(Int((summary.complianceThisWeek * 100).rounded()))%")
+                        .foregroundStyle(.secondary)
+                    Text("vs \(Int((summary.complianceLastWeek * 100).rounded()))% last week")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Section("Per-reminder streaks") {
+                ForEach(ReminderKind.allCases) { kind in
+                    HStack {
+                        Image(systemName: kind.symbolName)
+                            .foregroundStyle(kind.tint)
+                            .frame(width: 16)
+                        Text(kind.title)
+                        Spacer()
+                        let streak = model.perKindStreaks[kind] ?? 0
+                        Text(streak == 1 ? "1 day" : "\(streak) days")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
             Section {
                 Button("Erase all history", role: .destructive) { confirmErase = true }
                     .confirmationDialog("Erase every day of break history?",
@@ -514,7 +646,7 @@ private struct StatsTab: View {
                         Button("Erase", role: .destructive) { model.eraseStats() }
                         Button("Cancel", role: .cancel) {}
                     }
-                Text("History lives in ~/Library/Application Support/TakeABreak/stats.json and never leaves your Mac.")
+                Text("History lives in ~/Library/Application Support/Downtime/stats.json and never leaves your Mac.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -526,8 +658,7 @@ private struct StatsTab: View {
 // MARK: - Support
 
 private struct SupportTab: View {
-    // TODO: replace with your real Buy Me a Coffee page before shipping.
-    private static let coffeeURL = URL(string: "https://www.buymeacoffee.com/take-a-break")!
+    private static let coffeeURL = URL(string: "https://www.buymeacoffee.com/take.a.break")!
 
     var body: some View {
         Form {
@@ -537,7 +668,7 @@ private struct SupportTab: View {
                         .font(.system(size: 22))
                         .foregroundStyle(ReminderKind.stand.tint)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Enjoying Take a Break?").font(.system(size: 13, weight: .semibold))
+                        Text("Enjoying Downtime?").font(.system(size: 13, weight: .semibold))
                         Text("It's free, and stays that way. If it's saved your eyes or your back, a coffee helps keep it going.")
                             .font(.caption)
                             .foregroundStyle(.secondary)

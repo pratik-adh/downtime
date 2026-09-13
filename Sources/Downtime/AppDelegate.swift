@@ -19,6 +19,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.settingsWindow?.show()
         }
 
+        IntentBridge.model = model
+        NotificationManager.shared.onSnooze = { [weak self] in self?.model.snooze() }
+        NotificationManager.shared.onDone = { [weak self] in self?.model.acknowledge() }
+        NotificationManager.shared.onSkip = { [weak self] in self?.model.skip() }
+        if model.settings.breakStyle == .notification {
+            NotificationManager.shared.requestAuthorizationIfNeeded()
+        }
+
         model.start()
     }
 

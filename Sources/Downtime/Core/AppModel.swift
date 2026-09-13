@@ -32,6 +32,7 @@ enum PauseReason: Equatable {
     case outsideSchedule
     case away
     case fullscreen
+    case inMeeting(title: String?)
 
     var label: String {
         switch self {
@@ -41,6 +42,9 @@ enum PauseReason: Equatable {
         case .outsideSchedule: return "Outside your work hours"
         case .away:            return "You're away — timer on hold"
         case .fullscreen:      return "Fullscreen app — not interrupting"
+        case .inMeeting(let title):
+            if let title, !title.isEmpty { return "In a meeting — \(title)" }
+            return "In a meeting"
         }
     }
 
@@ -50,6 +54,7 @@ enum PauseReason: Equatable {
         case .outsideSchedule: return "moon.zzz.fill"
         case .away:            return "figure.wave"
         case .fullscreen:      return "rectangle.on.rectangle"
+        case .inMeeting:       return "calendar.badge.clock"
         }
     }
 }
@@ -84,11 +89,16 @@ final class AppModel: ObservableObject {
     @Published var idleSeconds: TimeInterval = 0
     @Published var isScreenAway = false
     @Published var launchAtLoginProblem: String?
+    @Published var isInMeeting = false
+    @Published var meetingTitle: String?
+    @Published var calendarAccessDenied = false
 
     // Derived stats, refreshed rather than recomputed on every read.
     @Published var todayStat = DayStat(day: StatsStore.key(for: Date()))
     @Published var recentDays: [DayStat] = []
     @Published var streak = 0
+    @Published var perKindStreaks: [ReminderKind: Int] = [:]
+    @Published var weekSummary = WeekSummary.zero
 
     /// Set by the app delegate so views can open the Settings window.
     var onOpenSettings: (() -> Void)?
@@ -96,6 +106,7 @@ final class AppModel: ObservableObject {
     private let stats = StatsStore()
     private var timer: Timer?
     private var presence: PresenceObserver?
+    private var calendarMonitor: CalendarMonitor?
     private var snoozeCounts: [ReminderKind: Int] = [:]
     private var graceUntil: Date?
     private var creditedThisAwayPeriod = false
@@ -123,6 +134,7 @@ final class AppModel: ObservableObject {
         presence = PresenceObserver { [weak self] away in
             self?.isScreenAway = away
         }
+        updateCalendarMonitor()
 
         let t = Timer(timeInterval: 1.0, repeats: true) { [weak self] _ in
             self?.tick()
@@ -135,7 +147,37 @@ final class AppModel: ObservableObject {
     func stop() {
         timer?.invalidate()
         timer = nil
+        calendarMonitor?.stop()
         stats.save()
+    }
+
+    // MARK: - Calendar
+
+    private func updateCalendarMonitor() {
+        guard settings.calendarAwareEnabled else {
+            calendarMonitor?.stop()
+            calendarMonitor = nil
+            isInMeeting = false
+            meetingTitle = nil
+            return
+        }
+        if calendarMonitor == nil {
+            calendarAccessDenied = false
+            let monitor = CalendarMonitor(
+                onMeetingChange: { [weak self] inMeeting, title in
+                    self?.isInMeeting = inMeeting
+                    self?.meetingTitle = title
+                },
+                onAuthorizationDenied: { [weak self] in
+                    self?.calendarAccessDenied = true
+                }
+            )
+            monitor.skipAllDayEvents = settings.calendarSkipAllDayEvents
+            calendarMonitor = monitor
+            monitor.start()
+        } else {
+            calendarMonitor?.skipAllDayEvents = settings.calendarSkipAllDayEvents
+        }
     }
 
     // MARK: - Tick
@@ -216,6 +258,7 @@ final class AppModel: ObservableObject {
         if idleSeconds >= TimeInterval(settings.idlePauseSeconds) { return }
 
         if settings.respectFullscreen && fullscreenActive { return }
+        if settings.calendarAwareEnabled && isInMeeting { return }
 
         advanceCounters()
 
@@ -244,6 +287,9 @@ final class AppModel: ObservableObject {
         stats.update(now) { stat in
             stat.breaksTaken += 1
             stat.breakSeconds += settings.awayResetsTimerMinutes * 60
+            for reminder in settings.enabledReminders {
+                stat.perKindTaken[reminder.kind.rawValue, default: 0] += 1
+            }
         }
         for kind in ReminderKind.allCases { elapsed[kind] = 0 }
         snoozeCounts = [:]
@@ -306,7 +352,15 @@ final class AppModel: ObservableObject {
             isManual: manual,
             didChime: false
         )
-        SoundPlayer.play(named: settings.soundName, volume: settings.soundVolume)
+
+        if settings.breakStyle == .notification {
+            let body = Format.render(setting.messageTemplate,
+                                      elapsed: elapsed[kind] ?? 0,
+                                      breakCount: todayStat.breaksTaken)
+            NotificationManager.shared.post(title: setting.headline, body: body)
+        } else {
+            SoundPlayer.play(named: settings.soundName, volume: settings.soundVolume)
+        }
     }
 
     func startBreakNow() {
@@ -363,6 +417,10 @@ final class AppModel: ObservableObject {
 
     private func finish(_ session: BreakSession, completed: Bool) {
         let spent = Int(session.elapsedInBreak.rounded())
+        // Kinds this break actually served, for the per-kind streaks — the
+        // primary kind plus any "also due" ones long enough to be covered.
+        var servedKinds: [ReminderKind] = completed ? [session.kind] : []
+
         stats.update(now) { stat in
             if completed {
                 stat.breaksTaken += 1
@@ -383,9 +441,18 @@ final class AppModel: ObservableObject {
                 // Long enough to have served this one too.
                 elapsed[kind] = 0
                 snoozeCounts[kind] = 0
+                if completed { servedKinds.append(kind) }
             } else {
                 // Cut short: push it out instead of firing again immediately.
                 elapsed[kind] = other.interval - TimeInterval(settings.snoozeMinutes * 60)
+            }
+        }
+
+        if !servedKinds.isEmpty {
+            stats.update(now) { stat in
+                for kind in servedKinds {
+                    stat.perKindTaken[kind.rawValue, default: 0] += 1
+                }
             }
         }
 
@@ -460,6 +527,7 @@ final class AppModel: ObservableObject {
         }
         if isScreenAway || idleSeconds >= TimeInterval(settings.idlePauseSeconds) { return .away }
         if settings.respectFullscreen && fullscreenActive { return .fullscreen }
+        if settings.calendarAwareEnabled && isInMeeting { return .inMeeting(title: meetingTitle) }
         return nil
     }
 
@@ -575,6 +643,10 @@ final class AppModel: ObservableObject {
         todayStat = stats.today(now)
         recentDays = stats.recent(7, from: now)
         streak = stats.streak(goal: settings.dailyBreakGoal, from: now)
+        weekSummary = stats.weekSummary(from: now)
+        for kind in ReminderKind.allCases {
+            perKindStreaks[kind] = stats.streak(kind: kind, goal: settings.goal(for: kind), from: now)
+        }
     }
 
     // MARK: - Settings side effects
@@ -596,8 +668,12 @@ final class AppModel: ObservableObject {
         if old.launchAtLogin != settings.launchAtLogin {
             launchAtLoginProblem = LaunchAtLogin.set(settings.launchAtLogin)
         }
-        if old.dailyBreakGoal != settings.dailyBreakGoal {
-            streak = stats.streak(goal: settings.dailyBreakGoal, from: now)
+        if old.dailyBreakGoal != settings.dailyBreakGoal || old.perKindGoal != settings.perKindGoal {
+            refreshDerived()
+        }
+        if old.calendarAwareEnabled != settings.calendarAwareEnabled
+            || old.calendarSkipAllDayEvents != settings.calendarSkipAllDayEvents {
+            updateCalendarMonitor()
         }
 
         SettingsStore.save(settings)
