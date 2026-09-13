@@ -1,9 +1,11 @@
-# Take a Break — full feature reference
+# Downtime — full feature reference
 
-Take a Break is a macOS menu-bar app that's concerned about your health: it
+Downtime is a macOS menu-bar app that's concerned about your health: it
 looks after your eyes, your back and your hydration through a working day at the
-screen. This document covers every feature, every setting, every default, and
-the behaviour behind each one. For the overview and install instructions, see
+screen. It also knows how to stay out of your way — holding reminders during a
+meeting or a fullscreen app.
+This document covers every feature, every setting, every default, and the
+behaviour behind each one. For the overview and install instructions, see
 [README.md](README.md).
 
 - [Menu bar](#menu-bar)
@@ -14,12 +16,15 @@ the behaviour behind each one. For the overview and install instructions, see
 - [Presence: idle, lock and sleep](#presence-idle-lock-and-sleep)
 - [Work hours](#work-hours)
 - [Fullscreen apps](#fullscreen-apps)
+- [Calendar-aware pausing](#calendar-aware-pausing)
 - [Pausing and resuming](#pausing-and-resuming)
 - [Water tracking](#water-tracking)
 - [Stats and streaks](#stats-and-streaks)
 - [Custom wording](#custom-wording)
 - [Sound](#sound)
 - [Open at login](#open-at-login)
+- [Shortcuts (App Intents)](#shortcuts-app-intents)
+- [Settings backup](#settings-backup)
 - [Appearance and design tokens](#appearance-and-design-tokens)
 - [Settings reference](#settings-reference)
 - [Keyboard shortcuts](#keyboard-shortcuts)
@@ -132,6 +137,7 @@ every 20 minutes / 20 second break and switches it on.
 | **Gentle** | Small card in the top-right corner. Never steals focus, never covers your work. |
 | **Focused** *(default)* | Frosted dim over the whole screen with the card in the middle. Skippable. |
 | **Strict** | Same, but Okay and Esc are locked out until the timer reaches zero. |
+| **Notification** | No window at all — a native macOS notification with Done / Snooze / Skip actions. Asks for notification permission the first time you pick it. |
 
 The card shows: the reminder name, a countdown ring, the headline, the message
 (with your real screen time substituted in), the instruction, any "also due"
@@ -147,6 +153,11 @@ you out of a break you opted into.
 
 **When the timer hits zero** the card switches to "Break complete", optionally
 chimes, and by default closes itself.
+
+The **Notification** style has no window and no keyboard shortcuts — use the
+notification's own Done / Snooze / Skip buttons instead. Everything else
+(counting down, "also due" folding, stats) works exactly the same underneath;
+only how the break is announced changes.
 
 ---
 
@@ -224,6 +235,31 @@ turn it off.
 
 ---
 
+## Calendar-aware pausing
+
+Off by default. When on, reminders hold automatically while an event on your
+calendar is happening right now — no schedule to configure, it just checks the
+current moment.
+
+- Reads calendar events via **EventKit**, polling once every 30 seconds for
+  anything active right now (a 2-second window around "now"). It never reads
+  your calendar in bulk, never stores an event, and never sends anything
+  anywhere — the only thing kept is a live yes/no plus the current event's
+  title, shown in Settings so you can see why reminders are quiet.
+- **Ignore all-day events** is on by default, so a birthday or a holiday
+  doesn't hold your reminders for the whole day.
+- Cancelled events are ignored.
+- Turning this on is the moment Downtime actually asks macOS for Calendar
+  access — it's the one feature in the app that needs a system permission. If
+  you decline (or later revoke it in System Settings → Privacy & Security →
+  Calendars), Settings → Schedule explains that plainly instead of silently
+  doing nothing.
+- Like fullscreen detection and being away, this is a fact about the world
+  rather than something you chose — the Resume button doesn't appear for it;
+  it clears itself when the meeting ends.
+
+---
+
 ## Pausing and resuming
 
 From the dashboard header menu or the right-click menu:
@@ -232,10 +268,19 @@ From the dashboard header menu or the right-click menu:
 - Pause **until tomorrow** (resumes 5 a.m.)
 - Pause **until I turn it back on**
 
-The footer's Pause button is the simple version of the last one.
+The footer's **Pause** button is the simple version of the last one - one
+click stops reminders until you press **Resume**.
 
 Pausing closes any break already on screen cleanly, so a reminder is never lost
 mid-break. A timed pause expires by itself.
+
+**While manually paused, the dashboard collapses** the reminder list, water
+tracker, actions and stats into a single "Reminders are paused" notice with
+its own Resume Break Mode button — the hero ring stays (it already shows the
+paused state clearly) but the rest has nothing fresh to show. This only
+happens for a real pause; being away, in a fullscreen app, in a meeting, or
+outside work hours are transient world-states, and the dashboard stays fully
+visible during those since it's still useful to glance at.
 
 **Honest affordances.** The app distinguishes holds you set from facts about the
 world. Manual pauses and the work-hours schedule are yours to lift, so Resume
@@ -256,12 +301,21 @@ Going over the goal shows a `+n` badge rather than hiding the overflow.
 ## Stats and streaks
 
 Recorded per day: **breaks taken**, **breaks skipped**, **snoozes**, **break
-seconds**, **screen seconds**, **glasses**.
+seconds**, **screen seconds**, **glasses**, plus (see below) **per-reminder
+breaks taken**.
 
 - **7-day bar chart** in the dashboard and in Settings → Stats.
-- **Streak** — consecutive days that met your daily break goal (1–30,
+- **Overall streak** — consecutive days that met your daily break goal (1–30,
   default 8). Today only counts once you've *hit* the goal, so the streak
   doesn't read as broken every morning before you've earned it.
+- **Per-reminder streaks** — Stand & Stretch, Drink Water and Rest Your Eyes
+  each keep their own streak against their own daily goal (Settings → General
+  → *Per-reminder goals*, 1–30 each, defaults 5 / 6 / 8). A day away from your
+  desk long enough to be credited as a break counts toward every enabled
+  reminder's streak, same as it does for the overall one.
+- **This week vs. last week** — Settings → Stats shows breaks taken and
+  compliance for the last 7 days against the 7 before that, so a good or bad
+  week has something to compare against besides a flat number.
 - History is kept for **120 days**, saved to disk every 30 seconds and on quit.
 - Settings → Stats → **Erase all history**, with a confirmation.
 
@@ -298,12 +352,40 @@ Silent disables the chime and volume controls too.
 
 ## Open at login
 
-Settings → General → **Open Take a Break at login**.
+Settings → General → **Open Downtime at login**.
 
 Registers with `SMAppService`. If macOS refuses — which unsigned local builds
 sometimes do — it falls back to a LaunchAgent at
-`~/Library/LaunchAgents/com.takeabreak.mac.launcher.plist`. Either way the
+`~/Library/LaunchAgents/com.downtime.mac.launcher.plist`. Either way the
 toggle reports what actually happened rather than silently failing.
+
+---
+
+## Shortcuts (App Intents)
+
+Four actions are exposed to Shortcuts and Siri, built with **App Intents** —
+no separate extension, no entitlement, just Swift in the main app target:
+
+| Shortcut | Does |
+|---|---|
+| **Take a Break Now** | Starts whichever reminder is next up |
+| **Pause Reminders** | Pauses for a number of minutes (parameterized) |
+| **Resume Reminders** | Resumes reminders |
+| **Log a Glass of Water** | Adds one glass to today's count |
+
+Build a Shortcut around these the same way as any other app's actions — e.g.
+"When my Focus turns on, Pause Reminders for 60 minutes."
+
+---
+
+## Settings backup
+
+Settings → General → **Export Settings…** / **Import Settings…** saves your
+whole configuration (reminders, break style, schedule, calendar
+settings, per-reminder goals — everything except your stats history) to a
+JSON file and loads it back. Useful for moving to another Mac or keeping a
+known-good configuration on hand. Import uses the same forgiving decode as
+every other settings load, so a file from an older or newer build still works.
 
 ---
 
@@ -334,30 +416,33 @@ set.
 
 ## Settings reference
 
-Six tabs.
+Seven tabs.
 
 ### Reminders
 Per reminder: on/off, interval, break length, custom headline, custom message.
 Plus the 20-20-20 preset button.
 
 ### Break Screen
-Style (Gentle / Focused / Strict) · Dim other displays · Snooze length ·
-Snoozes per break · Close automatically when the timer ends · Show a wellbeing
-tip · Preview a break now.
+Style (Gentle / Focused / Strict / Notification) · Dim other displays ·
+Snooze length · Snoozes per break · Close automatically when the timer ends ·
+Show a wellbeing tip · Preview a break now.
 
 ### Schedule
 Only remind me during work hours · From/to times · Weekday picker · live
 "Right now" status · Hold the timer after · Count time away as a break after ·
-Don't interrupt fullscreen apps · current idle seconds · Resume now.
+Don't interrupt fullscreen apps · **Calendar: pause during meetings, ignore
+all-day events, access status** · current idle seconds · Resume now.
 
 ### General
 Open at login · Show the countdown in the menu bar · Include seconds ·
 Reminder sound, volume, Test · Chime when a break finishes · Breaks per day
-goal · Glasses per day goal · About · Restore all defaults.
+goal · Glasses per day goal · **per-reminder daily goals** ·
+**Export/Import Settings** · About · Restore all defaults.
 
 ### Stats
 Today's chips (taken / skipped / snoozes / glasses) · screen time · break time ·
-7-day chart · streak · breaks this week · Erase all history.
+7-day chart · overall streak · **this week vs. last week** ·
+**per-reminder streaks** · breaks this week · Erase all history.
 
 ### Support
 Buy me a coffee · feedback note.
@@ -391,9 +476,10 @@ still works normally.
 
 | What | Where |
 |---|---|
-| Settings | user defaults, `com.takeabreak.mac`, key `takeabreak.settings.v1` |
-| History | `~/Library/Application Support/TakeABreak/stats.json` |
-| Login item fallback | `~/Library/LaunchAgents/com.takeabreak.mac.launcher.plist` |
+| Settings | user defaults, `com.downtime.mac`, key `downtime.settings.v1` |
+| History                        | `~/Library/Application Support/Downtime/stats.json` |
+| Login item fallback | `~/Library/LaunchAgents/com.downtime.mac.launcher.plist` |
+| Calendar events | never stored — checked live via EventKit, only a yes/no and the current event's title are kept in memory |
+| Notifications | delivered locally via `UNUserNotificationCenter`; nothing is sent to a server |
 
-No network code, no analytics, no accounts, no update check. Nothing leaves your
-Mac.
+No analytics, no accounts, no update check. Nothing leaves your Mac.
