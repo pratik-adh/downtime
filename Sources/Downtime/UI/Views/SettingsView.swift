@@ -352,7 +352,7 @@ private struct ScheduleTab: View {
                 if model.settings.scheduleEnabled {
                     Text(model.isWithinSchedule
                          ? "Right now: inside your work hours."
-                         : "Right now: outside your work hours — reminders are on hold.")
+                         : "Right now: outside your work hours - reminders are on hold.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
@@ -400,7 +400,7 @@ private struct ScheduleTab: View {
                             .font(.caption)
                             .foregroundStyle(.orange)
                     } else if model.isInMeeting {
-                        Text("Right now: in a meeting\(model.meetingTitle.map { " — \($0)" } ?? "") — reminders on hold.")
+                        Text("Right now: in a meeting\(model.meetingTitle.map { " - \($0)" } ?? "") - reminders on hold.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     } else {
@@ -415,7 +415,7 @@ private struct ScheduleTab: View {
                 HStack(spacing: 6) {
                     Image(systemName: model.pauseReason?.symbolName ?? "checkmark.circle.fill")
                         .foregroundStyle(model.isRunning ? ReminderKind.stand.tint : Color.secondary)
-                    Text(model.pauseReason?.label ?? "Counting — reminders active")
+                    Text(model.pauseReason?.label ?? "Counting - reminders active")
                         .font(.system(size: 12))
                     Spacer()
                     Text("idle \(Int(model.idleSeconds))s")
@@ -658,7 +658,8 @@ private struct StatsTab: View {
 // MARK: - Support
 
 private struct SupportTab: View {
-    private static let coffeeURL = URL(string: "https://www.buymeacoffee.com/take.a.break")!
+    private static let coffeeURL = URL(string: "https://www.buymeacoffee.com/downtime.app")!
+    private static let githubURL = URL(string: "https://github.com/pratik-adh/take-a-break")!
 
     var body: some View {
         Form {
@@ -683,12 +684,50 @@ private struct SupportTab: View {
                 .controlSize(.large)
             }
 
+            Section("What a coffee actually goes toward") {
+                supportRow(symbol: "lock.shield.fill",
+                           text: "No ads, no telemetry, no accounts - anywhere in this app. That's a deliberate, ongoing cost, not a one-time decision.")
+                supportRow(symbol: "hammer.fill",
+                           text: "Every feature here - calendar-aware pausing, per-reminder streaks, the Notification break style - is built and maintained by a person.")
+                supportRow(symbol: "arrow.triangle.2.circlepath",
+                           text: "Keeping up with new macOS releases, fixing bugs, and shipping the things people actually ask for.")
+                supportRow(symbol: "checkmark.seal.fill",
+                           text: "It doesn't unlock anything. Downtime is fully-featured whether or not you ever buy a coffee - this is just how you say thanks.")
+            }
+
             Section("Feedback") {
-                Text("Found a bug, or have an idea for a reminder? Let me know — every note gets read.")
+                Text("Found a bug, or have an idea for a reminder? Let me know - every note gets read.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
+            Section {
+                HStack(spacing: 8) {
+                    Image(systemName: "chevron.left.forwardslash.chevron.right")
+                        .foregroundStyle(.secondary)
+                    Text("Downtime is open source and MIT-licensed - issues and pull requests are welcome.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("View on GitHub") {
+                        NSWorkspace.shared.open(Self.githubURL)
+                    }
+                    .font(.caption)
+                }
+            }
         }
         .formStyle(.grouped)
+    }
+
+    private func supportRow(symbol: String, text: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: symbol)
+                .font(.system(size: 12))
+                .foregroundStyle(ReminderKind.stand.tint)
+                .frame(width: 16)
+            Text(text)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
     }
 }
