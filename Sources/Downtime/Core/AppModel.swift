@@ -40,10 +40,10 @@ enum PauseReason: Equatable {
             if let until { return "Paused until \(Format.timeOfDayFrom(date: until))" }
             return "Paused"
         case .outsideSchedule: return "Outside your work hours"
-        case .away:            return "You're away — timer on hold"
-        case .fullscreen:      return "Fullscreen app — not interrupting"
+        case .away:            return "You're away - timer on hold"
+        case .fullscreen:      return "Fullscreen app - not interrupting"
         case .inMeeting(let title):
-            if let title, !title.isEmpty { return "In a meeting — \(title)" }
+            if let title, !title.isEmpty { return "In a meeting - \(title)" }
             return "In a meeting"
         }
     }
@@ -216,7 +216,7 @@ final class AppModel: ObservableObject {
         // so the menu bar never reports a stale reason.
         if settings.respectFullscreen { _ = isFullscreenNow() } else { fullscreenActive = false }
 
-        // Nothing is credited or counted while paused or off the clock — and the
+        // Nothing is credited or counted while paused or off the clock - and the
         // away bookkeeping is re-armed, so the next real absence still counts.
         if isPausedIndefinitely || pausedUntil != nil {
             creditedThisAwayPeriod = false
@@ -309,7 +309,7 @@ final class AppModel: ObservableObject {
     ///
     /// When several are due at once we pick the one with the *longest* break,
     /// because a long break also serves the short ones (they ride along as
-    /// "also due") — one card instead of three in a row.
+    /// "also due") - one card instead of three in a row.
     func mostOverdueReminder(requireDue: Bool) -> ReminderKind? {
         let candidates = settings.reminders.filter { $0.isEnabled && $0.interval > 0 }
         guard !candidates.isEmpty else { return nil }
@@ -417,7 +417,7 @@ final class AppModel: ObservableObject {
 
     private func finish(_ session: BreakSession, completed: Bool) {
         let spent = Int(session.elapsedInBreak.rounded())
-        // Kinds this break actually served, for the per-kind streaks — the
+        // Kinds this break actually served, for the per-kind streaks - the
         // primary kind plus any "also due" ones long enough to be covered.
         var servedKinds: [ReminderKind] = completed ? [session.kind] : []
 
@@ -483,7 +483,7 @@ final class AppModel: ObservableObject {
         scheduleOverride = false
         let cal = Calendar.current
         let tomorrow = cal.date(byAdding: .day, value: 1, to: Date()) ?? Date().addingTimeInterval(86400)
-        // Anchor to the start of tomorrow — `bySettingHour` searches forward,
+        // Anchor to the start of tomorrow - `bySettingHour` searches forward,
         // which would otherwise land on the day after.
         pausedUntil = cal.date(bySettingHour: 5, minute: 0, second: 0,
                                of: cal.startOfDay(for: tomorrow))
@@ -512,7 +512,7 @@ final class AppModel: ObservableObject {
 
     /// Whether "Resume reminders" has anything to lift. Being away or in a
     /// fullscreen app are facts about the world rather than policies the person
-    /// set, and they clear themselves — offering a button for those is a lie.
+    /// set, and they clear themselves - offering a button for those is a lie.
     var canResume: Bool {
         if isPausedIndefinitely || pausedUntil != nil { return true }
         if settings.scheduleEnabled && !scheduleOverride && !isWithinSchedule { return true }
@@ -534,7 +534,7 @@ final class AppModel: ObservableObject {
     var isRunning: Bool { pauseReason == nil }
 
     /// A deliberate pause, as opposed to a transient world-state hold (away,
-    /// fullscreen, a meeting, outside work hours) — those clear themselves on
+    /// fullscreen, a meeting, outside work hours) - those clear themselves on
     /// their own, so they don't count as "you paused this."
     var isManuallyPaused: Bool { isPausedIndefinitely || pausedUntil != nil }
 
@@ -566,7 +566,7 @@ final class AppModel: ObservableObject {
         return minuteOfDay < end && settings.workdays.contains(yesterday)
     }
 
-    // MARK: - Fullscreen (throttled — the window list isn't free)
+    // MARK: - Fullscreen (throttled - the window list isn't free)
 
     private func isFullscreenNow() -> Bool {
         if now.timeIntervalSince(lastFullscreenCheck) >= 5 {

@@ -2,7 +2,7 @@ import Foundation
 
 enum Format {
 
-    /// "1h 05m" / "23m" / "45s" — for labels and prose.
+    /// "1h 05m" / "23m" / "45s" - for labels and prose.
     static func duration(_ seconds: TimeInterval) -> String {
         let total = max(0, Int(seconds.rounded()))
         let h = total / 3600
@@ -14,7 +14,7 @@ enum Format {
         return "\(s)s"
     }
 
-    /// "1 hour 5 minutes" — for the sentence on the break screen.
+    /// "1 hour 5 minutes" - for the sentence on the break screen.
     static func spelledDuration(_ seconds: TimeInterval) -> String {
         let total = max(0, Int(seconds.rounded()))
         let h = total / 3600
@@ -28,7 +28,7 @@ enum Format {
         return unit(max(total, 1), "second")
     }
 
-    /// "12:34" / "1:02:33" — for countdowns.
+    /// "12:34" / "1:02:33" - for countdowns.
     static func clock(_ seconds: TimeInterval) -> String {
         let total = max(0, Int(seconds.rounded()))
         let h = total / 3600

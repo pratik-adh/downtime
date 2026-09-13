@@ -8,7 +8,7 @@ struct DayStat: Codable, Equatable, Identifiable {
     var breakSeconds: Int = 0
     var screenSeconds: Int = 0
     var glasses: Int = 0
-    /// Breaks actually taken, keyed by `ReminderKind.rawValue` — backs each
+    /// Breaks actually taken, keyed by `ReminderKind.rawValue` - backs each
     /// reminder's own streak, separate from the combined `breaksTaken` above.
     var perKindTaken: [String: Int] = [:]
 
@@ -21,7 +21,7 @@ struct DayStat: Codable, Equatable, Identifiable {
     }
 }
 
-/// This week vs. the seven days before it — a coarse trend, not a chart.
+/// This week vs. the seven days before it - a coarse trend, not a chart.
 struct WeekSummary: Equatable {
     var breaksThisWeek: Int
     var breaksLastWeek: Int
