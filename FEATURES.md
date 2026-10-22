@@ -418,7 +418,7 @@ set.
 
 ## Settings reference
 
-Seven tabs.
+Six tabs.
 
 ### Reminders
 
@@ -455,7 +455,9 @@ Today's chips (taken / skipped / snoozes / glasses) · screen time · break time
 
 ### Support
 
-Buy me a coffee · feedback note.
+Buy me a coffee · what a coffee goes toward · feedback note · View on GitHub ·
+a pointer to **Netpulse**, the separate app network usage tracking moved to
+after 1.2.
 
 **Settings are saved on every change** and decoded forgivingly: every key falls
 back to its default and out-of-range values snap to the nearest valid option, so

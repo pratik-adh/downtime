@@ -1,6 +1,19 @@
-# Downtime
+<p align="center">
+  <img src="Resources/icon_1024.png" width="128" height="128" alt="Downtime icon - a countdown ring around a pause glyph">
+</p>
 
-[![Build](https://github.com/pratik-adh/downtime/actions/workflows/build.yml/badge.svg)](https://github.com/pratik-adh/downtime/actions/workflows/build.yml)
+<h1 align="center">Downtime</h1>
+
+<p align="center">
+  <strong>Break reminders for long days at the screen - for your eyes, your back, and your hydration.</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/pratik-adh/downtime/actions/workflows/build.yml"><img src="https://github.com/pratik-adh/downtime/actions/workflows/build.yml/badge.svg" alt="Build"></a>
+  <a href="https://github.com/pratik-adh/downtime/releases/latest"><img src="https://img.shields.io/github/v/release/pratik-adh/downtime" alt="Latest release"></a>
+  <img src="https://img.shields.io/badge/macOS-13%2B-blue" alt="macOS 13+">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license"></a>
+</p>
 
 **A macOS app that's concerned about your health.**
 
@@ -20,6 +33,17 @@ right-click: break now · pause · settings · quit
 ```
 
 **No Dock icon. No account. No analytics or telemetry - nothing you do here ever leaves your Mac.**
+
+<p align="center">
+  <img src="screenshots/dashboard.png" width="332" alt="The Downtime dashboard: a countdown ring to the next reminder, one row per reminder, a water tracker, today's stats and a 7-day chart">
+  &nbsp;&nbsp;
+  <img src="screenshots/break-card.png" width="420" alt="A Rest Your Eyes break card with a 12-second countdown ring, the instruction, a tip, and Snooze / I'm done buttons">
+</p>
+
+> **Looking for network usage tracking?** It used to live in Downtime (up to
+> 1.2) and is now its own app, **[Netpulse](https://github.com/pratik-adh/netpulse)** -
+> menu bar usage totals, live speed, a per-Wi-Fi breakdown and an on-demand
+> speed test. Downtime 1.3 and later is break reminders only.
 
 ---
 
@@ -97,8 +121,8 @@ rather than being left stranded off-anchor.
 per reminder with its own progress ring and on/off switch, a water tracker,
 Break now, today's stats, and a 7-day bar chart with your streak.
 
-**Break screen** - three styles, from a small corner card to a full dim that
-won't let you skip. Shows a countdown ring, what to do, an optional wellbeing
+**Break screen** - three on-screen styles, from a small corner card to a full
+dim that won't let you skip. Shows a countdown ring, what to do, an optional wellbeing
 tip, and snooze/skip/done.
 
 **Snooze** - default 10 minutes, capped at 3 per break by default so it can't
@@ -147,14 +171,18 @@ every default, and the exact behaviour behind each one.
 
 ## Install
 
-You need **macOS 13 (Ventura) or later** and the Xcode Command Line Tools. You do
-**not** need full Xcode.
+**Download:** grab `Downtime-<version>-macOS.zip` from the
+[latest release](https://github.com/pratik-adh/downtime/releases/latest), unzip
+it, and drag **Downtime.app** into `/Applications`. It's a universal binary
+(Apple silicon and Intel), macOS 13 (Ventura) or later.
+
+**Build from source:** you need the Xcode Command Line Tools - **not** full Xcode.
 
 ```sh
 xcode-select --install     # once, if `swift` isn't on your PATH
 
-git clone https://github.com/pratik-adh/take-a-break.git
-cd take-a-break
+git clone https://github.com/pratik-adh/downtime.git
+cd downtime
 ./build.sh --install       # compile, bundle, move to /Applications, launch
 ```
 
@@ -165,7 +193,7 @@ Or build without installing:
 open "dist/Downtime.app"
 ```
 
-The first launch puts a cup icon in your menu bar and nothing in the Dock -
+The first launch puts the next reminder's icon and countdown in your menu bar and nothing in the Dock -
 that's deliberate (`LSUIElement`). Quit from the menu bar item.
 
 Everything is Swift Package Manager, so `swift build -c release` on its own works
@@ -293,4 +321,4 @@ Settings → Support.
 
 ## License
 
-See [LICENSE](LICENSE) if present; otherwise all rights reserved by the author.
+MIT - see [LICENSE](LICENSE).
