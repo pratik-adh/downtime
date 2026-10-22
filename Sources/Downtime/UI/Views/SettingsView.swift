@@ -524,7 +524,7 @@ private struct GeneralTab: View {
                         .font(.system(size: 18))
                         .foregroundStyle(ReminderKind.stand.tint)
                     VStack(alignment: .leading, spacing: 1) {
-                        Text("Downtime 1.2").font(.system(size: 12, weight: .semibold))
+                        Text("Downtime 1.3").font(.system(size: 12, weight: .semibold))
                         Text("Break reminders for long days at the screen.")
                             .font(.caption).foregroundStyle(.secondary)
                     }
@@ -670,7 +670,8 @@ private struct StatsTab: View {
 
 private struct SupportTab: View {
     private static let coffeeURL = URL(string: "https://www.buymeacoffee.com/downtime.app")!
-    private static let githubURL = URL(string: "https://github.com/pratik-adh/take-a-break")!
+    private static let githubURL = URL(string: "https://github.com/pratik-adh/downtime")!
+    private static let netpulseURL = URL(string: "https://github.com/pratik-adh/netpulse")!
 
     var body: some View {
         Form {
@@ -722,6 +723,21 @@ private struct SupportTab: View {
                     Spacer()
                     Button("View on GitHub") {
                         NSWorkspace.shared.open(Self.githubURL)
+                    }
+                    .font(.caption)
+                }
+            }
+
+            Section("Looking for network tracking?") {
+                HStack(spacing: 8) {
+                    Image(systemName: "waveform.path.ecg")
+                        .foregroundStyle(.secondary)
+                    Text("Network usage and the speed test moved out of Downtime into their own free app, Netpulse.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Get Netpulse") {
+                        NSWorkspace.shared.open(Self.netpulseURL)
                     }
                     .font(.caption)
                 }
