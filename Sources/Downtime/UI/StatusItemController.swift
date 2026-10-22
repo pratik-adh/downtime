@@ -13,6 +13,18 @@ final class StatusItemController: NSObject {
     private var cancellables = Set<AnyCancellable>()
     private var buttonWindowObservers: [NSObjectProtocol] = []
 
+    /// The model republishes every second (its countdown tick), but this
+    /// icon/title usually don't change that often - only when the symbol,
+    /// text or tooltip actually differ is it worth rebuilding the image and
+    /// re-rendering the attributed title, which is the expensive part of
+    /// `refresh()` and otherwise ran needlessly once a second all day.
+    private struct RenderedState: Equatable {
+        var symbolName: String
+        var text: String
+        var tooltip: String
+    }
+    private var lastRenderedState: RenderedState?
+
     init(model: AppModel) {
         self.model = model
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -82,6 +94,11 @@ final class StatusItemController: NSObject {
             symbolName = "bell.slash.fill"
         }
 
+        let tooltipText = tooltip
+        let state = RenderedState(symbolName: symbolName, text: text, tooltip: tooltipText)
+        guard lastRenderedState != state else { return }
+        lastRenderedState = state
+
         // A `SymbolConfiguration` re-renders the glyph at this size with its
         // own correct metrics; forcing `.size` directly just scales whatever
         // was rendered at the default size, which left the icon slightly
@@ -102,7 +119,7 @@ final class StatusItemController: NSObject {
             )
         }
 
-        button.toolTip = tooltip
+        button.toolTip = tooltipText
         // If this changed the button's width, the window observers pick up
         // the resulting move/resize and recenter an open popover on it.
     }
